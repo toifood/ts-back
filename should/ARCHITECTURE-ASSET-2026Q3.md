@@ -11,6 +11,17 @@ ADD NEW ENTRIES AT THE TOP FOR NEW TOPICS; UPDATE IN PLACE FOR EXISTING ONES.
 FORMAT: ## ASSET:{NAME} {YYYY-MM-DD HH:MM} → {CONTENT}
 
 ####### <!-- ANCHOR MARKER - ADD OR UPDATE ENTRIES DIRECTLY BELOW THIS LINE -->
+## ASSET:ARCHITECTURE 2026-09-07 08:18 ▸ Deployment topology, route versioning, and schema-hardening conventions now in place
+
+**Deployment topology (per README.md):** single Mac mini M4 running two macOS accounts — `jayreck` hosts this Node.js API (`:3000`) and the colocated PostgreSQL instance (`:5432`); `jayagent` hosts Ollama (`:11434`, `qwen2.5:7b`) reached only via `127.0.0.1`. Public ingress is a Cloudflare Tunnel to `toifood.co.nz`; `src/index.ts` sets `app.set("trust proxy", 1)` to respect the tunnel's `X-Forwarded-For`.
+
+**Route versioning convention introduced.** `src/index.ts` mounts the full route set twice: a new `/1-1-6/{auth, api/*, system/*}` namespace and the original unprefixed paths, both pointing at the same `src/routes/*.ts` modules, so old mobile builds keep working while new builds migrate to the versioned prefix.
+
+**Domain/module architecture is consistent across the codebase.** `src/domains/*` (recipe, user, follow, review, report, bookmark, list, note, draft, insight, pantry, ingredient, emailpin, agent) own Prisma-backed entities and business logic; `src/modules/*` (rate, language, role, generate, cookie, email, push, seo, ogimg, analysis, preference, idp, appstore/playstore, highlight, color, content) own cross-cutting concerns. Each module exposes exactly one `register.ts` as its public door — peer modules import through it rather than reaching into `constants.ts`/`utils.ts` directly (explicitly called out in `src/modules/rate/register.ts`'s header comment).
+
+**Schema hardening: enum-vs-string split is now a documented, deliberate rule.** The `20260812160000_enum_to_string_categories` migration converted 4 volatile/cosmetic fields (`ListColor`, `FlagType`, `ReportReason`, `ReviewCategory`) from Postgres enums to validated `TEXT`, while keeping small, stable, logic-driving fields (`UserRole`, `Visibility`, `PreferenceStyle`, `RecipeProvider`, `ReportStatus`) as real DB enums — `prisma/schema.prisma`'s `PreferenceStyle`/`RecipeProvider` comments spell out the criterion (stable + load-bearing → enum; volatile/evolving → app-validated string) for future schema decisions.
+
+**Moderation/lifecycle timestamp convention standardized.** `Follow`, `Review`, `Note`, `Draft`, `SavedListField`, and `UserInsight` all use the same shape: an always-set `requestedAt` plus parallel outcome timestamps (`removedAt`/`acceptedAt`/`rejectedAt`) instead of a single `status` + `updatedAt` pair — giving an auditable per-row transition history without a separate history table, per the inline comments in `prisma/schema.prisma`.
 ## ASSET:ARCHITECTURE 2026-08-31 08:49 ▸ New `difficulty` preference axis; `Property` decoupled onto its own `PropertyType` enum (adds ingredient/mealtime); `Preference` gains a matching index; schema confirmed at 20 models
 
 Delta since the 2026-08-24 entry — thin-controller domains/modules split, role/rate topology, Agent retirement, and infra/ops below this entry are otherwise unchanged.
